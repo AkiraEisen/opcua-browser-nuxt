@@ -3,14 +3,17 @@
   <div class="flex flex-col h-full ml-2 mr-2 mt-4" v-loading="state.loading.global">
     <!-- menu -->
     <div class="flex flex-row">
-      <el-button @click="onLoadTree" type="primary" class="mr-2">加载数据</el-button>
+      <el-button @click="onLoadTree" type="primary" class="mr-2" disabled>加载数据</el-button>
       <el-input v-model="state.root"></el-input>
     </div>
     <div class="flex h-full mt-4" :style="{height: height + 'px'}" v-loading="state.loading.detail">
       <el-card class="flex-shrink-0" style="width: 400px">
+        <!-- :data="state.tree" -->
         <el-tree
+            v-if="state.root"
             :expand-on-click-node="false"
-            :data="state.tree"
+            :load="onLoad"
+            :lazy="true"
             :props="DefaultProps"
             @node-click="onDetail"></el-tree>
       </el-card>
@@ -39,7 +42,6 @@
 <script setup lang="ts">
 
 import {computed, reactive} from "vue";
-import {ElMessage} from "element-plus";
 import VueJsonPretty from "vue-json-pretty";
 
   interface Item {
@@ -67,7 +69,7 @@ import VueJsonPretty from "vue-json-pretty";
 
   const state = reactive({
     tree: [],
-    root: 'ns=5;i=339',
+    root: 'RootFolder',
     loading: {
       global: false,
       detail: false
@@ -77,14 +79,23 @@ import VueJsonPretty from "vue-json-pretty";
 
   const onLoadTree = async () => {
     state.loading.global = true
-    if (state.root && state.root !== '') {
-      const {data: response}: any = await useFetch('/api/opcua-all', {query: {root: state.root}});
-      state.tree = []
-      state.tree.push(response.value.content)
-    } else {
-      ElMessage.warning("root is empty!")
-    }
+    const {data: response}: any = await useFetch('/api/opcua-all', {query: {root: state.root}});
+    state.tree = []
+    state.tree.push(response.value.content)
     state.loading.global = false
+  }
+
+  const onLoad = async (node: any, resolve: (data: Item[] ) => void) => {
+    if (node.level === 0) {
+      return resolve([{
+        name: 'root',
+        nodeId: state.root
+      }])
+    }
+
+    const {data} = await useFetch('/api/opcua-browse', {query: {root: node?.data?.nodeId}})
+    // resolve()
+    resolve(data.value.content)
   }
 
   const onDetail = async (node: any) => {

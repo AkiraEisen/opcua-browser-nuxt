@@ -28,7 +28,7 @@ class OpcUAClient {
     return this.client;
   }
   
-  private async browse(parent: Item, session: ClientSession) {
+  private async _browse(parent: Item, session: ClientSession) {
     const browseResult = await session.browse(String(parent?.nodeId));
     if (browseResult.references != null) {
       for (let key in browseResult.references) {
@@ -38,7 +38,7 @@ class OpcUAClient {
           nodeId: ref.nodeId.toString(),
           children: []
         };
-        await this.browse(child, session);
+        await this._browse(child, session);
         parent.children?.push(child);
       }
     }
@@ -77,15 +77,44 @@ class OpcUAClient {
   
     const parent: Item = {
       name: 'Root',
-      nodeId: root,
+      nodeId: (root && root !== '') ? root : 'RootFolder',
       children: []
     }
-    await this.browse(parent, this.session as ClientSession);
+    await this._browse(parent, this.session as ClientSession);
   
     return {
       status: true,
       content: parent
     };
+  }
+  
+  public async browse(root: string) {
+    await this.getSession();
+  
+    const parent: Item = {
+      name: 'Root',
+      nodeId: (root && root !== '') ? root : 'RootFolder',
+      children: []
+    }
+    const browseResult = await this.session?.browse(String(parent?.nodeId));
+    if (browseResult?.references != null) {
+      for (let key in browseResult.references) {
+        const ref: ReferenceDescription = browseResult.references[key];
+        const child = {
+          name: ref.displayName?.text?.toString(),
+          nodeId: ref.nodeId.toString(),
+          children: []
+        };
+        // await this._browse(child, session);
+        parent.children?.push(child);
+      }
+    }
+    
+    return {
+      status: true,
+      content: parent.children
+    }
+    
   }
   
   public async getDetail(node: string) {
