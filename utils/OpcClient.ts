@@ -20,12 +20,20 @@ class OpcUAClient {
   
   private session: ClientSession | null = null;
   
+  private endpoint: string | null = null;
+  
+  private connection: OPCUAClient | null = null;
+  
   private constructor() {
   }
   
   public static async get() : Promise<OpcUAClient> {
-    this.client = new OpcUAClient();
-    return this.client;
+    if (this.client) {
+      return this.client;
+    } else {
+      this.client = new OpcUAClient();
+      return this.client;
+    }
   }
   
   private async _browse(parent: Item, session: ClientSession) {
@@ -44,30 +52,35 @@ class OpcUAClient {
     }
   }
   
-  
   private async connect() {
-    const ENDPOINT: string = 'opc.tcp://192.168.1.88:4840';
+    // const ENDPOINT: string = 'opc.tcp://192.168.1.88:4840';
     const CONNECTION_STRATEGY = {
       initialDelay: 1000,
       maxRetry: 1
     }
     
-    const client: OPCUAClient = OPCUAClient.create({
+    this.connection = OPCUAClient.create({
       applicationName: 'test',
       connectionStrategy: CONNECTION_STRATEGY,
       securityMode: MessageSecurityMode.None,
       securityPolicy: SecurityPolicy.None,
-      endpointMustExist: false
+      endpointMustExist: false,
+      keepSessionAlive: true
     })
     
-    await client.connect(ENDPOINT);
-    
-    return await client.createSession();
+    if (this.endpoint != null) {
+      await this.connection.connect(this.endpoint);
+      return await this.connection.createSession();
+    } else {
+      return null;
+    }
   }
   
   private async getSession() {
-    if(this.session == null) {
+    console.log(`use session: [${this.session?.sessionId}][${this.session?.name}]`)
+    if(this.session === null) {
       this.session = await this.connect();
+      console.log(`create session: [${this.session?.sessionId}][${this.session?.name}]`)
     }
   }
   
@@ -88,6 +101,15 @@ class OpcUAClient {
     };
   }
   
+  public async changeEndpoint(endpoint: string) {
+    this.endpoint = endpoint;
+    await this.connection?.disconnect();
+    this.session = null;
+    return {
+      status: true
+    }
+  }
+  
   public async browse(root: string) {
     await this.getSession();
   
@@ -96,7 +118,14 @@ class OpcUAClient {
       nodeId: (root && root !== '') ? root : 'RootFolder',
       children: []
     }
-    const browseResult = await this.session?.browse(String(parent?.nodeId));
+    
+    let browseResult;
+    try {
+      browseResult = await this.session?.browse(String(parent?.nodeId))
+    } catch (exception) {
+      return {status: false}
+      console.log(exception)
+    }
     if (browseResult?.references != null) {
       for (let key in browseResult.references) {
         const ref: ReferenceDescription = browseResult.references[key];
@@ -123,7 +152,14 @@ class OpcUAClient {
       nodeId: node,
       attributeId: AttributeIds.Value
     };
-    const value = await this.session?.read(valueRead, 0);
+    let value;
+  
+    try {
+      value = await this.session?.read(valueRead, 0)
+    } catch (exception) {
+      return {status: false}
+      
+    }
     return {
       status: true,
       content: {
@@ -146,9 +182,14 @@ class OpcUAClient {
         }
       }
     ];
-    console.log(nodesToWrite[0].value.value)
-  
-    const result = await this.session?.write(nodesToWrite);
+    let result;
+    try {
+      result = await this.session?.write(nodesToWrite);
+    } catch (exception) {
+      return {status: false}
+      console.log(exception)
+    }
+    
     console.log('write result: ', result)
     return {
       status: true
