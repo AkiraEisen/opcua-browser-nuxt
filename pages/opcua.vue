@@ -13,7 +13,7 @@
 
     </div>
     <div v-if="state.ready" class="flex h-full mt-2" :style="{height: state.height + 'px'}" v-loading="state.loading.detail">
-      <el-card class="flex-shrink-0" style="width: 400px">
+      <el-card class="flex-shrink-0 overflow-y-scroll" style="width: 400px">
         <!-- :data="state.tree" -->
         <el-tree
             v-if="state.root"
